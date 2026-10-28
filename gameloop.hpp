@@ -1,0 +1,621 @@
+#pragma once
+
+#include "data.hpp"
+
+#include "Button.hpp"
+
+#include "render.hpp"
+#include "guiRender.hpp"
+
+inline void meleeActivation(std::optional<sf::Event>& event, sf::Sprite& equippedWeapon, const sf::Texture& equippedSpear, const sf::Texture& equippedSword, sf::Clock& menuClock, sf::RenderWindow& window, const sf::View& guiView, const sf::Sprite& player, const sf::Texture& equippedFists) {
+
+    int delay = 300;
+    if(melees[0].selected) { delay = melees[0].cooldown; }
+    if(melees[1].selected) { delay = melees[1].cooldown; }
+
+    if (menuClock.getElapsedTime() < sf::milliseconds(delay)) {
+        sf::Angle currentAngle = equippedWeapon.getRotation();
+        sf::Vector2f attackDir(std::cos(currentAngle.asRadians()), std::sin(currentAngle.asRadians()));
+        equippedWeapon.setPosition(player.getPosition() + (attackDir * 30.f));
+    }
+    else {
+        if (&equippedWeapon.getTexture() != &equippedFists) {
+            equippedWeapon.setTexture(equippedFists);
+        }
+        sf::Vector2f mouseDir = window.mapPixelToCoords(sf::Mouse::getPosition(window)) - player.getPosition();
+        if (mouseDir != sf::Vector2f(0.f, 0.f)) {
+            equippedWeapon.setRotation(mouseDir.angle());
+        }
+        equippedWeapon.setPosition(player.getPosition());
+
+        isAttacking = false;
+    }
+
+    if (!event.has_value()) return;
+
+    if (const auto* mouseButtonEvent = event->getIf<sf::Event::MouseButtonPressed>()) {
+        if (mouseButtonEvent->button == sf::Mouse::Button::Left && !inInv) {
+
+            if (menuClock.getElapsedTime() >= sf::milliseconds(delay)) {
+
+                sf::Vector2f clickDir = window.mapPixelToCoords(sf::Mouse::getPosition(window)) - player.getPosition();
+                if (clickDir != sf::Vector2f(0.f, 0.f)) {
+                    equippedWeapon.setRotation(clickDir.angle());
+                    equippedWeapon.setPosition(player.getPosition() + (clickDir.normalized() * 30.f));
+                }
+
+                if(melees[0].selected) { equippedWeapon.setTexture(equippedSpear); }
+                if(melees[1].selected) { equippedWeapon.setTexture(equippedSword); }
+
+                isAttacking = true;
+
+                menuClock.restart();
+            }
+        }
+    }
+}
+
+inline void secondaryActivation(std::optional<sf::Event>& event, sf::RenderWindow& window, sf::View& view, sf::Sprite& shuriken, sf::Sprite& equippedWeapon, const sf::Texture& equippedShuriken) {
+    if (const auto* mouseButtonEvent = event->getIf<sf::Event::MouseButtonPressed>()) {
+        if(throwables[0].selected && !isFlying && throwables[0].c>0) {
+            if (mouseButtonEvent->button == sf::Mouse::Button::Right) {
+
+                sf::Vector2f mousePos = window.mapPixelToCoords(mouseButtonEvent->position, view);
+
+                sf::Vector2f centerPosition = view.getCenter();
+
+                shuriken.setPosition(centerPosition);
+
+                sf::Vector2f direction = mousePos - centerPosition;
+                float length = std::hypot(direction.x, direction.y);
+
+                if (length > 0.1f) {
+                    velocity = (direction / length) * speedPerFrame;
+                    isFlying = true;
+                }
+                throwables[0].c--;
+            }
+        }
+    }
+}
+
+inline void start() {
+
+    sf::RenderWindow window;
+
+    sf::VideoMode desktopMode = sf::VideoMode::getDesktopMode();
+
+    window.create(desktopMode, "Game", sf::Style::None, sf::State::Windowed);
+    window.setVerticalSyncEnabled(true);
+
+    float zoomFactor = 3.5f;
+
+    sf::View view;
+    view.setSize(sf::Vector2f({
+        (float)desktopMode.size.x / zoomFactor,
+        (float)desktopMode.size.y / zoomFactor
+    }));
+
+     sf::Texture spearTEX("assets/spearTEX.png");
+    sf::Texture swordTEX("assets/swordTEX.png");
+    sf::Texture shurikenTEX("assets/shurikenTEX.png");
+
+    sf::Sprite shuriken(shurikenTEX);
+    shuriken.setScale({0.5f, 0.5f});
+    shuriken.setOrigin(sf::Vector2f(shurikenTEX.getSize()) / 2.0f);
+
+    sf::Vector2f centerPosition{400.f, 300.f};
+    shuriken.setPosition(centerPosition);
+
+    sf::View guiView;
+    guiView.setSize({1280.f, 720.f});
+    guiView.setCenter({1280.f / 2.f, 720.f / 2.f});
+
+    sf::Texture playerTEX("assets/playerFrontIdle.png");
+    sf::Sprite player(playerTEX);
+
+    player.setPosition({px * 40.0f, py * 40.0f});
+    player.setOrigin(sf::Vector2f(playerTEX.getSize()) / 2.0f);
+
+    view.setCenter(player.getPosition());
+
+
+    std::string fontPath = "C:\\Windows\\Fonts\\arial.ttf";
+
+    sf::Font f(fontPath);
+
+    sf::Text weaponCount(f);
+    weaponCount.setPosition({1150.f,650.f});
+    weaponCount.setScale({2.f,2.f});
+
+    sf::Text selWeaponName(f);
+    selWeaponName.setPosition({760.f,450.f});
+    selWeaponName.setFillColor(sf::Color::Black);
+    selWeaponName.setScale({2.f,2.f});
+
+    sf::Text selWeaponCount(f);
+    selWeaponCount.setPosition({760.f,530.f});
+    selWeaponCount.setFillColor(sf::Color::Black);
+    selWeaponCount.setScale({2.f,2.f});
+
+    sf::Text selWeaponDamage(f);
+    selWeaponDamage.setPosition({760.f,610.f});
+    selWeaponDamage.setFillColor(sf::Color::Black);
+    selWeaponDamage.setScale({2.f,2.f});
+
+    sf::Text guiStateText(f);
+    guiStateText.setPosition({850.f,15.f});
+    guiStateText.setFillColor(sf::Color::Black);
+    guiStateText.setScale({2.f,2.f});
+
+    sf::Text settingsStateText(f);
+    settingsStateText.setPosition({850.f,90.f});
+    settingsStateText.setFillColor(sf::Color::Black);
+    settingsStateText.setScale({2.f,2.f});
+
+    static const sf::Texture equippedShuriken("assets/equippedShuriken.png");
+    static const sf::Texture equippedSpear("assets/equippedSpear.png");
+    static const sf::Texture equippedSword("assets/equippedSword.png");
+    static const sf::Texture equippedFists("assets/equippedFists.png");
+
+    sf::Sprite equippedWeapon(equippedFists);
+
+
+    sf::Vector2u textureSize = playerTEX.getSize();
+    player.setOrigin({textureSize.x/2.f,textureSize.y/2.f});
+    equippedWeapon.setOrigin({textureSize.x/2.f,textureSize.y/2.f});
+
+    static sf::Texture grassTEX("assets/grassTile.png");
+    sf::Sprite grass(grassTEX);
+
+    static sf::Texture grassTEX2("assets/grassTile2.png");
+    sf::Sprite grass2(grassTEX2);
+
+    static sf::Texture stairTEX("assets/stairTile.png");
+    sf::Sprite stair(stairTEX);
+
+    static sf::Texture craftTabTEX("assets/craftingTable.png");
+    sf::Sprite craftingTable(craftTabTEX);
+
+    static sf::Texture spikesTEX("assets/spikesTile.png");
+    sf::Sprite spikes(spikesTEX);
+
+    static sf::Texture wall1TEX("assets/Wall1Tile.png");
+    sf::Sprite Wall1(wall1TEX);
+
+    static sf::Texture wall1TEX2("assets/Wall1Tile2.png");
+    sf::Sprite Wall1_2(wall1TEX2);
+
+    static sf::Texture wall1TEX3("assets/Wall1Tile3.png");
+    sf::Sprite Wall1_3(wall1TEX3);
+
+    static sf::Texture wall2TEX("assets/Wall2Tile.png");
+    sf::Sprite Wall2(wall2TEX);
+
+    static sf::Texture wall2TEX2("assets/Wall2Tile2.png");
+    sf::Sprite Wall2_2(wall2TEX2);
+
+    static sf::Texture wall3TEX("assets/Wall3Tile.png");
+    sf::Sprite Wall3(wall3TEX);
+
+    static sf::Texture wall3TEX2("assets/Wall3Tile2.png");
+    sf::Sprite Wall3_2(wall3TEX2);
+
+    static sf::Texture wall3TEX3("assets/Wall3Tile3.png");
+    sf::Sprite Wall3_3(wall3TEX3);
+
+    static sf::Texture waterTEX("assets/Water.png");
+    sf::Sprite Water(waterTEX);
+
+    static sf::Texture bridge1TEX("assets/Bridge1.png");
+    sf::Sprite Bridge1(bridge1TEX);
+
+    static sf::Texture water1TEX("assets/Water1.png");
+    sf::Sprite Water1(water1TEX);
+
+    static sf::Texture water2TEX("assets/Water2.png");
+    sf::Sprite Water2(water2TEX);
+
+    static sf::Texture water3TEX("assets/Water3.png");
+    sf::Sprite Water3(water3TEX);
+
+    static sf::Texture water4TEX("assets/Water4.png");
+    sf::Sprite Water4(water4TEX);
+
+    static sf::Texture water5TEX("assets/Water5.png");
+    sf::Sprite Water5(water5TEX);
+
+    static sf::Texture water6TEX("assets/Water6.png");
+    sf::Sprite Water6(water6TEX);
+
+    static sf::Texture water7TEX("assets/Water7.png");
+    sf::Sprite Water7(water7TEX);
+
+    static sf::Texture water8TEX("assets/Water8.png");
+    sf::Sprite Water8(water8TEX);
+
+    static sf::Texture upperGrassTEX("assets/UpperGrassTile.png");
+    sf::Sprite UpperGrass(upperGrassTEX);
+
+    static sf::Texture ShadedGrass1TEX("assets/ShadedGrass1.png");
+    sf::Sprite ShadedGrass1(ShadedGrass1TEX);
+
+    static sf::Texture ShadedGrass2TEX("assets/ShadedGrass2.png");
+    sf::Sprite ShadedGrass2(ShadedGrass2TEX);
+
+    static sf::Texture ShadedGrass3TEX("assets/ShadedGrass3.png");
+    sf::Sprite ShadedGrass3(ShadedGrass3TEX);
+
+    static sf::Texture ShadedGrass4TEX("assets/ShadedGrass4.png");
+    sf::Sprite ShadedGrass4(ShadedGrass4TEX);
+
+    static sf::Texture ShadedGrass5TEX("assets/ShadedGrass5.png");
+    sf::Sprite ShadedGrass5(ShadedGrass5TEX);
+
+    static sf::Texture ShadedGrass6TEX("assets/ShadedGrass6.png");
+    sf::Sprite ShadedGrass6(ShadedGrass6TEX);
+
+    static sf::Texture ShadedGrass7TEX("assets/ShadedGrass7.png");
+    sf::Sprite ShadedGrass7(ShadedGrass7TEX);
+
+    static sf::Texture ShadedGrass8TEX("assets/ShadedGrass8.png");
+    sf::Sprite ShadedGrass8(ShadedGrass8TEX);
+
+    static sf::Texture ShadedGrass9TEX("assets/ShadedGrass9.png");
+    sf::Sprite ShadedGrass9(ShadedGrass9TEX);
+
+    static sf::Texture ShadedGrass10TEX("assets/ShadedGrass10.png");
+    sf::Sprite ShadedGrass10(ShadedGrass10TEX);
+
+    static sf::Texture ShadedGrass11TEX("assets/ShadedGrass11.png");
+    sf::Sprite ShadedGrass11(ShadedGrass11TEX);
+
+    static sf::Texture ShadedGrass12TEX("assets/ShadedGrass12.png");
+    sf::Sprite ShadedGrass12(ShadedGrass12TEX);
+
+    static sf::Texture ShadedGrass13TEX("assets/ShadedGrass13.png");
+    sf::Sprite ShadedGrass13(ShadedGrass13TEX);
+
+    static sf::Texture ShadedGrass14TEX("assets/ShadedGrass14.png");
+    sf::Sprite ShadedGrass14(ShadedGrass14TEX);
+
+    static sf::Texture ShadedGrass15TEX("assets/ShadedGrass15.png");
+    sf::Sprite ShadedGrass15(ShadedGrass15TEX);
+
+    static sf::Texture ShadedGrass16TEX("assets/ShadedGrass16.png");
+    sf::Sprite ShadedGrass16(ShadedGrass16TEX);
+
+    static sf::Texture ShadedGrass17TEX("assets/ShadedGrass17.png");
+    sf::Sprite ShadedGrass17(ShadedGrass17TEX);
+
+    static sf::Texture ShadedGrass18TEX("assets/ShadedGrass18.png");
+    sf::Sprite ShadedGrass18(ShadedGrass18TEX);
+
+    static sf::Texture ShadedGrass19TEX("assets/ShadedGrass19.png");
+    sf::Sprite ShadedGrass19(ShadedGrass19TEX);
+
+    static sf::Texture ShadedGrass20TEX("assets/ShadedGrass20.png");
+    sf::Sprite ShadedGrass20(ShadedGrass20TEX);
+
+    static sf::Texture ShadedGrass21TEX("assets/ShadedGrass21.png");
+    sf::Sprite ShadedGrass21(ShadedGrass21TEX);
+
+    static sf::Texture ShadedGrass22TEX("assets/ShadedGrass22.png");
+    sf::Sprite ShadedGrass22(ShadedGrass22TEX);
+
+    static sf::Texture ShadedGrass23TEX("assets/ShadedGrass23.png");
+    sf::Sprite ShadedGrass23(ShadedGrass23TEX);
+
+    static sf::Texture ShadedGrass24TEX("assets/ShadedGrass24.png");
+    sf::Sprite ShadedGrass24(ShadedGrass24TEX);
+
+    static sf::Texture ShadedGrass25TEX("assets/ShadedGrass25.png");
+    sf::Sprite ShadedGrass25(ShadedGrass25TEX);
+
+    static sf::Texture SlimeTEX("assets/spikesTile.png");
+
+    static sf::Texture bushTEX("assets/Bush.png");
+    sf::Sprite Bush(bushTEX);
+
+    sf::RectangleShape inventoryBACKGROUND;
+    inventoryBACKGROUND.setSize({1200.f,1200.f});
+    inventoryBACKGROUND.setPosition({750.f,0.f});
+    inventoryBACKGROUND.setFillColor(sf::Color(127, 127, 127, 240));
+    inventoryBACKGROUND.setOutlineColor(sf::Color(83, 83, 83, 250));
+    inventoryBACKGROUND.setOutlineThickness(8.f);
+
+    sf::RectangleShape guiTOP;
+    guiTOP.setSize({600.f,100.f});
+    guiTOP.setPosition({750.f,0.f});
+    guiTOP.setFillColor(sf::Color(83, 83, 83, 250));
+
+    sf::RectangleShape primariesHUD;
+    primariesHUD.setSize({900.f,120.f});
+    primariesHUD.setPosition({60.f,112.f});
+    primariesHUD.setFillColor(sf::Color::Transparent);
+
+    sf::RectangleShape secondariesHUD;
+    secondariesHUD.setSize({900.f,120.f});
+    secondariesHUD.setPosition({60.f,230.f});
+    secondariesHUD.setFillColor(sf::Color::Transparent);
+
+    static sf::Texture arrowUP("assets/arrowUP.png");
+    static sf::Texture arrowDOWN("assets/arrowDOWN.png");
+    static sf::Texture arrowLEFT("assets/arrowLEFT.png");
+    static sf::Texture arrowRIGHT("assets/arrowRIGHT.png");
+
+    static sf::Texture inventoryBUTTON("assets/inventoryBUTTON.png");
+
+    static sf::Texture exitBUT("assets/exitBUT.png");
+
+    static sf::Texture equipTEX("assets/equipBUT.png");
+
+    Button aUP(arrowUP,150.f,500.f,{2.f,2.f});
+    Button aDOWN(arrowDOWN,150.f,600.f,{2.f,2.f});
+    Button aLEFT(arrowLEFT,96.5f,550.f,{2.f,2.f});
+    Button aRIGHT(arrowRIGHT,202.5f,550.f,{2.f,2.f});
+
+    Button invBUT(inventoryBUTTON,1190.f,10.f,{2.5f,2.5f});
+
+    Button ExitBUT(exitBUT,10.f,10.f,{2.5f,2.5f});
+
+    Button SpearBUT(spearTEX,885.f,300.f,{3.f,3.f});
+    Button SwordBUT(swordTEX,760.f,300.f,{3.f,3.f});
+
+    Button ShurikenBUT(shurikenTEX,760.f,300.f,{3.f,3.f});
+
+    Button primaryBUT(swordTEX,800.f,125.f,{4.f,4.f});
+    Button secondaryBUT(shurikenTEX,1000.f,125.f,{4.f,4.f});
+
+    readTiledFile("map_Ground.csv","groundMap");
+    readTiledFile("map_Props.csv","propsMap");
+
+    static sf::Texture dummyTEX("assets/Dummy.png");
+    sf::Sprite dummy(dummyTEX);
+
+    static sf::RectangleShape weaponHitbox;
+    weaponHitbox.setOrigin({20.f,20.f});
+    weaponHitbox.setSize({40.f,40.f});
+    weaponHitbox.setFillColor(sf::Color(255,0,0,125));
+
+    while (window.isOpen()) {
+
+        view.setSize(sf::Vector2f({
+            (float)desktopMode.size.x / zoomFactor,
+            (float)desktopMode.size.y / zoomFactor
+        }));
+
+
+        while (std::optional<sf::Event> event = window.pollEvent()) {
+
+
+            if (event->is<sf::Event::Closed>()) {
+                window.close();
+            }
+
+            sf::Vector2f inputGuiPos;
+
+            if (auto* touchBegan = event->getIf<sf::Event::TouchBegan>()) {
+                inputGuiPos = window.mapPixelToCoords(touchBegan->position, guiView);
+            }
+            else if (auto* touchEnded = event->getIf<sf::Event::TouchEnded>()) {
+                inputGuiPos = window.mapPixelToCoords(touchEnded->position, guiView);
+            }
+            else {
+                inputGuiPos = window.mapPixelToCoords(sf::Mouse::getPosition(window), guiView);
+            }
+
+            aUP.handleEvent(*event, inputGuiPos);
+            aDOWN.handleEvent(*event, inputGuiPos);
+            aLEFT.handleEvent(*event, inputGuiPos);
+            aRIGHT.handleEvent(*event, inputGuiPos);
+
+            invBUT.handleEvent(*event, inputGuiPos);
+
+            ExitBUT.handleEvent(*event, inputGuiPos);
+
+            ShurikenBUT.handleEvent(*event, inputGuiPos);
+
+            SpearBUT.handleEvent(*event, inputGuiPos);
+            SwordBUT.handleEvent(*event, inputGuiPos);
+
+            primaryBUT.handleEvent(*event, inputGuiPos);
+            secondaryBUT.handleEvent(*event, inputGuiPos);
+
+            if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
+                if (keyPressed->code == sf::Keyboard::Key::Escape) {
+                    window.close();
+                }
+            }
+            if (const auto* resized = event->getIf<sf::Event::Resized>()) {
+
+
+                 view.setSize(sf::Vector2f({
+                    (float)resized->size.x / zoomFactor,
+                    (float)resized->size.y / zoomFactor
+                 }));
+            }
+
+
+            meleeActivation(event, equippedWeapon, equippedSpear, equippedSword, menuClock, window, guiView, player, equippedFists);
+            secondaryActivation(event, window, view, shuriken, equippedWeapon, equippedShuriken);
+
+            std::optional<sf::Event> noEvent = std::nullopt;
+        }
+
+        if(guiState==guiStateMachine::None) { guiStateText.setString(" "); }
+        else if(guiState==guiStateMachine::Equipment) { guiStateText.setString("Equipment"); }
+        else if(guiState==guiStateMachine::Settings) { guiStateText.setString("Settings"); }
+
+        if(settingsState==settingsStateMachine::None) { settingsStateText.setString(" "); }
+
+        movementSystem(wasMoving,vy,vx,ACCELERATION,menuClock,rolling,player,playerTEX,isMoving);
+
+
+        if (isFlying) {
+            shuriken.move(velocity);
+            shuriken.rotate(sf::degrees(12.f));
+
+            sf::Vector2f playerPos = player.getPosition();
+            sf::Vector2f shurikenPos = shuriken.getPosition();
+            float distanța = std::hypot(shurikenPos.x - playerPos.x, shurikenPos.y - playerPos.y);
+
+            if (distanța > 600.f) {
+                isFlying = false;
+            }
+        }
+
+        if(ShurikenBUT.isClicked() && sSel) { currentWeapon=VisWeapon::Shuriken; secondaryBUT.m_sprite.setTexture(shurikenTEX); throwables[0].selected=true; }
+        if(SpearBUT.isClicked() && pSel) { currentWeapon=VisWeapon::Spear; primaryBUT.m_sprite.setTexture(spearTEX); melees[0].selected=true; melees[1].selected=false; }
+        if(SwordBUT.isClicked() && pSel) { currentWeapon=VisWeapon::Sword; primaryBUT.m_sprite.setTexture(swordTEX); melees[1].selected=true; melees[0].selected=false; }
+
+        if(primaryBUT.isClicked()) {
+            pSel = !pSel;
+        }
+        if(secondaryBUT.isClicked()) {
+            sSel = !sSel;
+        }
+
+        if(!isAnyPrimarySelected() && !isAnySecondarySelected() ) {
+            equippedWeapon.setTexture(equippedFists);
+        }
+
+        if ((sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left) || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right)) && inInv) {
+            if (menuClock.getElapsedTime() >= sf::milliseconds(200)) {
+
+                if (guiState == guiStateMachine::Equipment) {
+                    guiState = guiStateMachine::Settings;
+                }
+                else if (guiState == guiStateMachine::Settings) {
+                    guiState = guiStateMachine::Equipment;
+                }
+
+                menuClock.restart();
+            }
+        }
+
+        if ( (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) || sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down) ) &&
+             (settingsState==settingsStateMachine::Video || settingsState==settingsStateMachine::Sound ) ) {
+            if (menuClock.getElapsedTime() >= sf::milliseconds(200)) {
+
+                if (settingsState == settingsStateMachine::Video) {
+                    settingsState = settingsStateMachine::Sound;
+                    settingsStateText.setString("Sound");
+                }
+                else if (settingsState == settingsStateMachine::Sound) {
+                    settingsState = settingsStateMachine::Video;
+                    settingsStateText.setString("Video");
+                }
+
+                menuClock.restart();
+            }
+        }
+
+
+        if(invBUT.isClicked()) { inInv=true; guiState=guiStateMachine::Equipment; }
+        if(ExitBUT.isClicked()) { inInv=false; guiState=guiStateMachine::None; }
+
+        // MOVEMENT
+
+        if(GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
+            ACCELERATION=0.02f;
+        } else {
+            ACCELERATION=0.015f;
+        }
+
+        vx *= FRICTION;
+        vy *= FRICTION;
+
+        float nextX = px + vx;
+        float nextY = py + vy;
+
+        int tileX = std::clamp((int)nextX, 0, N - 1);
+        int tileY = std::clamp((int)nextY, 0, N - 1);
+
+
+        // COLLISIONS
+        if(groundMap[tileY][tileX] == WALL1 ||
+           groundMap[tileY][tileX] == WALL2t2 ||
+           groundMap[tileY][tileX] == WALL2 ||
+           groundMap[tileY][tileX] == WALL3 ||
+           groundMap[tileY][tileX] == SPIKES ||
+           groundMap[tileY][tileX] == WATER ||
+           groundMap[tileY][tileX] == WATER1 ||
+           groundMap[tileY][tileX] == WATER2 ||
+           groundMap[tileY][tileX] == WATER3 ||
+           groundMap[tileY][tileX] == WATER4 ||
+           groundMap[tileY][tileX] == WATER5 ||
+           groundMap[tileY][tileX] == WATER6 ||
+           groundMap[tileY][tileX] == WATER7 ||
+           groundMap[tileY][tileX] == WATER8 ||
+           groundMap[tileY][tileX] == SHADEDGRASS1 ||
+           groundMap[tileY][tileX] == SHADEDGRASS2 ||
+           groundMap[tileY][tileX] == SHADEDGRASS3 ||
+           groundMap[tileY][tileX] == SHADEDGRASS4 ||
+           groundMap[tileY][tileX] == SHADEDGRASS5 ||
+           groundMap[tileY][tileX] == SHADEDGRASS6 ||
+           groundMap[tileY][tileX] == SHADEDGRASS7 ||
+           groundMap[tileY][tileX] == SHADEDGRASS8 ||
+
+           propsMap[tileY][tileX] == BUSH
+           ) {
+            vx = 0.0f;
+            vy = 0.0f;
+        } else {
+            px = nextX;
+            py = nextY;
+        }
+
+        if (px < 0.0f) { px = 0.0f; vx = 0.0f; }
+        if (px > (float)N - 1.0f) { px = (float)N - 1.0f; vx = 0.0f; }
+        if (py < 0.0f) { py = 0.0f; vy = 0.0f; }
+        if (py > (float)N - 1.0f) { py = (float)N - 1.0f; vy = 0.0f; }
+
+
+        player.setPosition(sf::Vector2f({px * 40.0f, py * 40.0f}));
+
+        weaponHitbox.setPosition(equippedWeapon.getPosition());
+
+
+        view.setCenter(player.getPosition());
+        window.setView(view);
+
+
+        // RENDER
+
+        sf::Vector2f viewSize = view.getSize();
+        sf::Vector2f viewCenter = view.getCenter();
+
+        int startX = std::clamp((int)((viewCenter.x - viewSize.x / 2.0f) / 40.0f) - 1, 0, N);
+        int startY = std::clamp((int)((viewCenter.y - viewSize.y / 2.0f) / 40.0f) - 1, 0, N);
+        int endX   = std::clamp((int)((viewCenter.x + viewSize.x / 2.0f) / 40.0f) + 1, 0, N);
+        int endY   = std::clamp((int)((viewCenter.y + viewSize.y / 2.0f) / 40.0f) + 1, 0, N);
+
+        if (startX >= endX && endX > 0) startX = endX - 1;
+        if (startY >= endY && endY > 0) startY = endY - 1;
+
+        groundRender(window, groundMap, grass, grass2, spikes, Wall1, Wall1_2, Wall1_3, Wall2, Wall2_2, Wall3, Wall3_2, Wall3_3, craftingTable, UpperGrass, stair, Water, Water1, Water2, Water3, Water4, Water5, Water6, Water7, Water8, Bridge1, ShadedGrass1, ShadedGrass2, ShadedGrass3, ShadedGrass4, ShadedGrass5, ShadedGrass6, ShadedGrass7, ShadedGrass8, ShadedGrass9, ShadedGrass10, ShadedGrass11, ShadedGrass12, ShadedGrass13, ShadedGrass14, ShadedGrass15, ShadedGrass16, ShadedGrass17, ShadedGrass18, ShadedGrass19, ShadedGrass20, ShadedGrass21, ShadedGrass22, ShadedGrass23, ShadedGrass24, ShadedGrass25, view);
+        propsRender(window, propsMap, view, Bush, dummy, weaponHitbox, isAttacking, shuriken);
+
+        window.setView(view);
+
+        window.draw(player);
+
+        window.draw(equippedWeapon);
+        //window.draw(weaponHitbox);
+
+        if (isFlying && throwables[0].selected) {
+            window.draw(shuriken);
+        }
+
+        window.setView(guiView);
+
+        RenderGUI(window, inInv, currentWeapon, guiState, settingsState, zoomFactor, selWeaponName, selWeaponCount, selWeaponDamage, throwables, animations, melees, inventoryBACKGROUND, guiTOP, guiStateText, settingsStateText, primaryBUT, secondaryBUT, ExitBUT, pSel, sSel, SwordBUT, SpearBUT, ShurikenBUT, invBUT);
+
+        window.setView(view);
+
+        window.display();
+
+    }
+
+}
