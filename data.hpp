@@ -42,6 +42,8 @@ inline bool wasMoving = false;
 
 inline bool isAttacking = false;
 
+inline const float rollVAdd = 0.5f;
+
 enum class VisWeapon {
     Shuriken,
     Spear,

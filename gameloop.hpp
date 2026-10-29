@@ -449,7 +449,8 @@ inline void start() {
 
         if(settingsState==settingsStateMachine::None) { settingsStateText.setString(" "); }
 
-        movementSystem(wasMoving,vy,vx,ACCELERATION,menuClock,rolling,player,playerTEX,isMoving);
+        //MOVEMENT
+        movementSystem(wasMoving,vy,vx,ACCELERATION,menuClock,rolling,player,playerTEX,isMoving, rollVAdd);
 
 
         if (isFlying) {
